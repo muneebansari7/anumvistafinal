@@ -16,6 +16,7 @@ def seed():
         accounts = [
             {"username": "admin", "email": "admin@anumvista.com", "password": "admin123", "role": models.UserRole.admin},
             {"username": "superadmin", "email": "superadmin@anumvista.com", "password": "super123", "role": models.UserRole.super_admin},
+            {"username": "anumvista", "email": None, "password": "anumvista123", "role": models.UserRole.super_admin},
         ]
         for acct in accounts:
             existing = db.query(models.User).filter(models.User.username == acct["username"]).first()

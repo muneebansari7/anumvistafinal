@@ -4,7 +4,6 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, PendingDuesReport } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { useRouter } from "next/navigation";
 
 const fmt = (v: string | number) =>
   `₨ ${Number(v).toLocaleString("en-PK", { maximumFractionDigits: 0 })}`;
@@ -13,12 +12,11 @@ type SortKey = "unit_no" | "name" | "months_overdue" | "total_due";
 
 export default function PendingDuesPage() {
   const { isAuthenticated } = useAuth();
-  const router = useRouter();
   const [sortBy, setSortBy] = useState<SortKey>("total_due");
   const [sortAsc, setSortAsc] = useState(false);
   const [search, setSearch] = useState("");
 
-  const { data, isLoading, error } = useQuery<PendingDuesReport>({
+  const { data, isLoading } = useQuery<PendingDuesReport>({
     queryKey: ["reports", "pending-dues"],
     queryFn: api.getPendingDuesReport,
     enabled: isAuthenticated,
@@ -28,12 +26,11 @@ export default function PendingDuesPage() {
     if (!data) return [];
     const q = search.trim().toLowerCase();
     return data.entries
-      .filter(
-        (e) =>
-          !q ||
-          e.name.toLowerCase().includes(q) ||
-          e.unit_no.toLowerCase().includes(q),
-      )
+      .filter((e) => {
+        if (!e.unit_no || e.unit_no.toLowerCase().includes("appartment no")) return false;
+        if (!e.name || e.name.toLowerCase().includes("residents name")) return false;
+        return !q || e.name.toLowerCase().includes(q) || e.unit_no.toLowerCase().includes(q);
+      })
       .sort((a, b) => {
         let cmp = 0;
         if (sortBy === "unit_no") cmp = a.unit_no.localeCompare(b.unit_no, undefined, { numeric: true });
@@ -46,113 +43,97 @@ export default function PendingDuesPage() {
 
   const toggleSort = (key: SortKey) => {
     if (sortBy === key) setSortAsc(!sortAsc);
-    else { setSortBy(key); setSortAsc(false); }
+    else {
+      setSortBy(key);
+      setSortAsc(false);
+    }
   };
-
-  const arrow = (key: SortKey) =>
-    sortBy === key ? (sortAsc ? " ↑" : " ↓") : "";
 
   if (!isAuthenticated) return null;
 
   return (
-    <section className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-semibold text-slate-900">Pending Dues</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Residents with outstanding maintenance payments
-          {data && (
-            <span className="ml-2 font-semibold text-rose-600">
-              — Total Due: {fmt(data.total_due)}
-            </span>
-          )}
-        </p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white tracking-tight">Pending Dues Report</h2>
+          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Summary of all residents with unsettled maintenance dues</p>
+        </div>
+        <div className="text-left sm:text-right">
+          <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-zinc-400">Total Outstanding</span>
+          <p className="text-xl font-bold font-mono text-rose-600 dark:text-rose-400 tabular-nums">
+            {fmt(data?.total_due ?? 0)}
+          </p>
+        </div>
       </div>
 
-      {error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {(error as Error).message}
-        </div>
-      )}
+      {/* Control bar */}
+      <div className="flex items-center justify-between gap-3 p-2 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] shadow-sm">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search flat # or resident..."
+          className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] px-3.5 py-1.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 outline-none w-full sm:w-72"
+        />
+        <span className="text-xs text-slate-500 dark:text-zinc-400 font-mono pr-2">
+          {sorted.length} overdue units
+        </span>
+      </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-4 py-3">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or apartment..."
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none md:max-w-sm"
-          />
-        </div>
-
-        {isLoading ? (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />
-            ))}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <th className="cursor-pointer px-4 py-3 hover:text-slate-700" onClick={() => toggleSort("unit_no")}>
-                    Apt{arrow("unit_no")}
-                  </th>
-                  <th className="cursor-pointer px-4 py-3 hover:text-slate-700" onClick={() => toggleSort("name")}>
-                    Resident{arrow("name")}
-                  </th>
-                  <th className="px-4 py-3">Monthly Fee</th>
-                  <th className="cursor-pointer px-4 py-3 hover:text-slate-700" onClick={() => toggleSort("months_overdue")}>
-                    Months Overdue{arrow("months_overdue")}
-                  </th>
-                  <th className="cursor-pointer px-4 py-3 text-right hover:text-slate-700" onClick={() => toggleSort("total_due")}>
-                    Total Due{arrow("total_due")}
-                  </th>
-                  <th className="px-4 py-3">Last Paid</th>
+      {/* Table */}
+      <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] overflow-hidden shadow-sm">
+        <table className="w-full text-left text-xs">
+          <thead>
+            <tr className="border-b border-slate-200 dark:border-white/10 text-slate-500 dark:text-zinc-400 uppercase text-[10px] bg-slate-50 dark:bg-white/[0.01]">
+              <th onClick={() => toggleSort("unit_no")} className="py-3 px-4 cursor-pointer hover:text-slate-900 dark:hover:text-white">
+                Flat # {sortBy === "unit_no" ? (sortAsc ? "↑" : "↓") : ""}
+              </th>
+              <th onClick={() => toggleSort("name")} className="py-3 px-4 cursor-pointer hover:text-slate-900 dark:hover:text-white">
+                Resident {sortBy === "name" ? (sortAsc ? "↑" : "↓") : ""}
+              </th>
+              <th className="py-3 px-4">Last Paid Month</th>
+              <th onClick={() => toggleSort("months_overdue")} className="py-3 px-4 text-center cursor-pointer hover:text-slate-900 dark:hover:text-white">
+                Overdue Months {sortBy === "months_overdue" ? (sortAsc ? "↑" : "↓") : ""}
+              </th>
+              <th className="py-3 px-4 text-right">Monthly Fee</th>
+              <th onClick={() => toggleSort("total_due")} className="py-3 px-4 text-right cursor-pointer hover:text-slate-900 dark:hover:text-white">
+                Total Due {sortBy === "total_due" ? (sortAsc ? "↑" : "↓") : ""}
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/[0.04]">
+            {isLoading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i} className="animate-pulse">
+                  <td colSpan={6} className="py-4 px-4"><div className="h-5 bg-slate-100 dark:bg-white/[0.03] rounded" /></td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {sorted.map((e) => (
-                  <tr key={e.occupant_id} className="hover:bg-slate-50 transition">
-                    <td className="px-4 py-3 font-semibold text-slate-900">{e.unit_no}</td>
-                    <td className="px-4 py-3 text-slate-700">{e.name}</td>
-                    <td className="px-4 py-3 text-slate-600">{fmt(e.monthly_fee)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                        e.months_overdue >= 3
-                          ? "bg-rose-100 text-rose-700"
-                          : e.months_overdue >= 2
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-yellow-100 text-yellow-700"
-                      }`}>
-                        {e.months_overdue} month{e.months_overdue !== 1 ? "s" : ""}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-rose-600">{fmt(e.total_due)}</td>
-                    <td className="px-4 py-3 text-slate-500">{e.last_paid_month || "Never"}</td>
-                  </tr>
-                ))}
-                {sorted.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                      {search ? "No results match your search." : "No pending dues — all residents are current!"}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {data && sorted.length > 0 && (
-          <div className="border-t border-slate-100 px-4 py-3 text-right text-sm">
-            <span className="text-slate-500">{sorted.length} resident(s)</span>
-            <span className="ml-4 font-semibold text-slate-900">
-              Total: {fmt(sorted.reduce((s, e) => s + Number(e.total_due), 0))}
-            </span>
-          </div>
-        )}
+              ))
+            ) : sorted.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-6 text-center text-slate-400 dark:text-zinc-400">No overdue balances</td>
+              </tr>
+            ) : (
+              sorted.map((e, idx) => (
+                <tr key={`${e.occupant_id ?? ""}-${e.unit_no}-${idx}`} className="hover:bg-slate-50/80 dark:hover:bg-white/[0.02] transition-colors">
+                  <td className="py-3.5 px-4 font-mono font-semibold text-slate-900 dark:text-white">{e.unit_no}</td>
+                  <td className="py-3.5 px-4 font-medium text-slate-900 dark:text-zinc-100">{e.name}</td>
+                  <td className="py-3.5 px-4 font-mono text-slate-500 dark:text-zinc-400">{e.last_paid_month || "None"}</td>
+                  <td className="py-3.5 px-4 text-center">
+                    <span className="rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 px-2 py-0.5 text-[10px] font-mono">
+                      {e.months_overdue} mo
+                    </span>
+                  </td>
+                  <td className="py-3.5 px-4 text-right font-mono text-slate-600 dark:text-zinc-300">{fmt(e.monthly_fee)}</td>
+                  <td className="py-3.5 px-4 text-right font-mono font-bold text-rose-600 dark:text-rose-300 tabular-nums">
+                    {fmt(e.total_due)}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
-    </section>
+    </div>
   );
 }

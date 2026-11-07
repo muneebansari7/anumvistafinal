@@ -1,19 +1,25 @@
 import os
-from sqlalchemy import create_engine
+from pathlib import Path
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+BASE_DIR = Path(__file__).resolve().parent
+DB_PATH = BASE_DIR / "anum_vista.db"
 
-# Default back to Postgres so the API reads the real DB by default.
-# You can still override with DATABASE_URL (including SQLite) when needed.
-if not DATABASE_URL:
-    DATABASE_URL = "postgresql://postgres:aliaamir@localhost:5433/anum_vista_db"
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH.as_posix()}")
 
 engine_kwargs = {}
 if DATABASE_URL.startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 
 engine = create_engine(DATABASE_URL, **engine_kwargs)
+
+if DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 # Session local class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -10,11 +10,11 @@ const fmt = (v: string | number) =>
   `₨ ${Number(v).toLocaleString("en-PK", { maximumFractionDigits: 0 })}`;
 
 const statusStyles: Record<string, string> = {
-  paid: "bg-emerald-100 text-emerald-700",
-  pending: "bg-rose-100 text-rose-700",
-  partial: "bg-amber-100 text-amber-700",
-  advance: "bg-sky-100 text-sky-700",
-  upcoming: "bg-slate-100 text-slate-500",
+  paid: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20",
+  pending: "bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/20",
+  partial: "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20",
+  advance: "bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-500/20",
+  upcoming: "bg-slate-100 dark:bg-zinc-500/10 text-slate-700 dark:text-zinc-400 border-slate-200 dark:border-zinc-500/20",
 };
 
 export default function LedgerPage() {
@@ -39,142 +39,129 @@ export default function LedgerPage() {
     if (!t.unit?.unit_no) return false;
     const q = search.trim().toLowerCase();
     return !q || t.name.toLowerCase().includes(q) || t.unit.unit_no.toLowerCase().includes(q);
-  }).sort((a, b) => {
-    const an = a.unit.unit_no.match(/\d+/);
-    const bn = b.unit.unit_no.match(/\d+/);
-    return (an ? Number(an[0]) : 999) - (bn ? Number(bn[0]) : 999);
   });
 
   if (!isAuthenticated) return null;
 
   return (
-    <section className="space-y-6">
+    <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h2 className="text-3xl font-semibold text-slate-900">Resident Ledger</h2>
-        <p className="mt-1 text-sm text-slate-500">Month-by-month payment status for any resident</p>
+        <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white tracking-tight">Resident Ledger</h2>
+        <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Month-by-month payment statement and historical clearance</p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-4">
-        {/* Resident Picker */}
-        <div className="flex-1 min-w-[240px]">
-          <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Select Resident</label>
+      {/* Selector Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] shadow-sm">
+        <div className="relative flex-1 max-w-sm">
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search residents..."
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+            onChange={(e) => {
+              setSearch(e.target.value);
+              if (selectedId) setSelectedId(null);
+            }}
+            placeholder="Search flat # or resident..."
+            className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] px-3.5 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 outline-none focus:border-slate-400 dark:focus:border-white/30"
           />
           {search && !selectedId && filteredTenants.length > 0 && (
-            <div className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-              {filteredTenants.slice(0, 10).map((t) => (
+            <div className="absolute left-0 top-full mt-1 z-30 w-full max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] shadow-xl p-1 divide-y divide-slate-100 dark:divide-white/[0.04]">
+              {filteredTenants.slice(0, 8).map((t) => (
                 <button
                   key={t.id}
-                  onClick={() => { setSelectedId(t.id); setSearch(`${t.unit.unit_no} — ${t.name}`); }}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 transition"
+                  onClick={() => {
+                    setSelectedId(t.id);
+                    setSearch(`${t.unit.unit_no} — ${t.name}`);
+                  }}
+                  className="w-full p-2 text-left text-xs hover:bg-slate-50 dark:hover:bg-white/[0.06] rounded-lg transition-colors flex items-center justify-between"
                 >
-                  <span className="font-semibold text-slate-900">{t.unit.unit_no}</span>
-                  <span className="ml-2 text-slate-600">{t.name}</span>
+                  <span className="font-mono font-semibold text-slate-900 dark:text-white">{t.unit.unit_no}</span>
+                  <span className="text-slate-600 dark:text-zinc-300 truncate">{t.name}</span>
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* Year Picker */}
-        <div>
-          <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Year</label>
-          <select
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-          >
-            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-        </div>
-
-        {selectedId && (
-          <button
-            onClick={() => { setSelectedId(null); setSearch(""); }}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-          >
-            Clear
-          </button>
-        )}
+        <select
+          value={year}
+          onChange={(e) => setYear(Number(e.target.value))}
+          className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] px-3 py-2 text-xs text-slate-900 dark:text-white shadow-sm outline-none"
+        >
+          {[2024, 2025, 2026, 2027].map((y) => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
       </div>
 
-      {!selectedId && (
-        <div className="rounded-xl border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
-          <p className="text-slate-400">Select a resident above to view their ledger.</p>
+      {/* Ledger Grid View */}
+      {selectedId == null ? (
+        <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] p-12 text-center text-xs text-slate-500 dark:text-zinc-400 shadow-sm">
+          Search and pick a resident above to inspect their annual statement.
         </div>
-      )}
+      ) : ledgerLoading ? (
+        <div className="h-64 rounded-2xl bg-slate-100 dark:bg-white/[0.02] border border-slate-200 dark:border-white/[0.05] animate-pulse" />
+      ) : ledger ? (
+        <div className="space-y-6">
+          {/* Summary pill */}
+          {(() => {
+            const pendingEntries = ledger.entries.filter((e) => e.status === "pending" || e.status === "partial");
+            const overdueMonths = pendingEntries.length;
+            const outstandingDues = pendingEntries.reduce(
+              (acc, e) => acc + Math.max(0, Number(e.amount_due) - Number(e.amount_paid)),
+              0
+            );
+            const advanceBalance = ledger.entries
+              .filter((e) => e.status === "advance")
+              .reduce((acc, e) => acc + Number(e.amount_paid), 0);
 
-      {selectedId && ledgerLoading && (
-        <div className="space-y-2">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />
-          ))}
-        </div>
-      )}
-
-      {ledger && (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-4 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-lg font-semibold text-slate-900">
-                  {ledger.unit_no} — {ledger.occupant_name}
-                </p>
-                <p className="text-sm text-slate-500">Monthly fee: {fmt(ledger.monthly_fee)}</p>
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-4 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] shadow-sm">
+                  <span className="text-[10px] text-slate-500 dark:text-zinc-400 uppercase tracking-wider">Base Maintenance</span>
+                  <p className="text-base font-bold font-mono text-slate-900 dark:text-white mt-1">{fmt(ledger.monthly_fee)}</p>
+                </div>
+                <div className="p-4 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] shadow-sm">
+                  <span className="text-[10px] text-slate-500 dark:text-zinc-400 uppercase tracking-wider">Total Months Overdue</span>
+                  <p className="text-base font-bold font-mono text-rose-600 dark:text-rose-400 mt-1">{overdueMonths} months</p>
+                </div>
+                <div className="p-4 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] shadow-sm">
+                  <span className="text-[10px] text-slate-500 dark:text-zinc-400 uppercase tracking-wider">Outstanding Dues</span>
+                  <p className="text-base font-bold font-mono text-rose-600 dark:text-rose-400 mt-1">{fmt(outstandingDues)}</p>
+                </div>
+                <div className="p-4 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] shadow-sm">
+                  <span className="text-[10px] text-slate-500 dark:text-zinc-400 uppercase tracking-wider">Advance Paid</span>
+                  <p className="text-base font-bold font-mono text-sky-600 dark:text-sky-400 mt-1">{fmt(advanceBalance)}</p>
+                </div>
               </div>
-              <div className="flex gap-2 text-xs">
-                {Object.entries(statusStyles).map(([key, cls]) => (
-                  <span key={key} className={`rounded-full px-2 py-0.5 font-semibold capitalize ${cls}`}>
-                    {key}
+            );
+          })()}
+
+          {/* 12-Month Calendar Grid */}
+          <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] p-5 shadow-sm">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">Statement Period: {year}</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {ledger.entries.map((m) => (
+                <div
+                  key={m.month_key}
+                  className="rounded-xl border border-slate-200 dark:border-white/[0.06] bg-slate-50/50 dark:bg-white/[0.01] p-3 text-center space-y-2"
+                >
+                  <p className="text-xs font-semibold text-slate-700 dark:text-zinc-200">{m.label.split(" ")[0]}</p>
+                  <span
+                    className={`inline-block rounded-full px-2 py-0.5 text-[9px] font-medium border uppercase tracking-wider ${
+                      statusStyles[m.status] || "bg-slate-100 dark:bg-zinc-500/10 text-slate-700 dark:text-zinc-400 border-slate-200 dark:border-zinc-500/20"
+                    }`}
+                  >
+                    {m.status}
                   </span>
-                ))}
-              </div>
+                  <p className="text-xs font-mono font-medium text-slate-900 dark:text-white tabular-nums">
+                    {Number(m.amount_paid) > 0 ? fmt(m.amount_paid) : fmt(m.amount_due)}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <th className="px-4 py-3">Month</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Due</th>
-                  <th className="px-4 py-3 text-right">Paid</th>
-                  <th className="px-4 py-3 text-right">Balance</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {ledger.entries.map((e) => {
-                  const due = Number(e.amount_due);
-                  const paid = Number(e.amount_paid);
-                  const balance = due - paid;
-                  return (
-                    <tr key={e.month_key} className="hover:bg-slate-50 transition">
-                      <td className="px-4 py-3 font-medium text-slate-700">{e.label}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${statusStyles[e.status] || "bg-slate-100 text-slate-500"}`}>
-                          {e.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-600">{fmt(due)}</td>
-                      <td className="px-4 py-3 text-right text-slate-600">{fmt(paid)}</td>
-                      <td className={`px-4 py-3 text-right font-semibold ${balance > 0 ? "text-rose-600" : balance < 0 ? "text-sky-600" : "text-slate-400"}`}>
-                        {balance === 0 ? "—" : balance > 0 ? fmt(balance) : `-${fmt(Math.abs(balance))}`}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
         </div>
-      )}
-    </section>
+      ) : null}
+    </div>
   );
 }

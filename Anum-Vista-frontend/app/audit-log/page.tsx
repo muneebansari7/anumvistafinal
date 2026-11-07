@@ -1,26 +1,28 @@
 "use client";
+
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { api, AuditLogItem } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 
-const actionColors: Record<string, string> = {
-  created: "bg-sky-100 text-sky-700",
-  approved: "bg-emerald-100 text-emerald-700",
-  rejected: "bg-rose-100 text-rose-700",
-  cancelled: "bg-slate-200 text-slate-600",
-  verified: "bg-amber-100 text-amber-700",
-  login: "bg-violet-100 text-violet-700",
-};
-
-const actionIcons: Record<string, string> = {
-  created: "📝", approved: "✅", rejected: "❌", cancelled: "🚫", verified: "🔍", login: "🔑",
+const actionStyles: Record<string, string> = {
+  created: "bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-500/20",
+  approved: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20",
+  rejected: "bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/20",
+  cancelled: "bg-slate-100 dark:bg-zinc-500/10 text-slate-700 dark:text-zinc-400 border-slate-200 dark:border-zinc-500/20",
+  verified: "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20",
+  login: "bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-500/20",
 };
 
 const fmtTime = (iso: string) => {
   const d = new Date(iso);
-  return d.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 };
 
 export default function AuditLogPage() {
@@ -28,11 +30,8 @@ export default function AuditLogPage() {
   const router = useRouter();
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [actionFilter, setActionFilter] = useState<string>("ALL");
   const [actorFilter, setActorFilter] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
 
   useEffect(() => {
     if (!authLoading && user?.role !== "super_admin") {
@@ -48,94 +47,88 @@ export default function AuditLogPage() {
         offset: 0,
         action: actionFilter === "ALL" ? undefined : actionFilter,
         actor: actorFilter.trim() || undefined,
-        date_from: fromDate || undefined,
-        date_to: toDate || undefined,
       })
       .then(setLogs)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [actionFilter, actorFilter, fromDate, toDate]);
-
+  }, [actionFilter, actorFilter]);
 
   if (authLoading || user?.role !== "super_admin") return null;
 
   return (
-    <section className="space-y-6">
+    <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h2 className="text-3xl font-semibold text-slate-900">Audit Log</h2>
-        <p className="mt-1 text-sm text-slate-500">Complete history of all actions. Records cannot be deleted.</p>
+        <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white tracking-tight">System Audit Trail</h2>
+        <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+          Immutable log of operational events, authentication, and financial approvals
+        </p>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {["ALL", "created", "approved", "rejected", "cancelled", "verified", "login"].map(f => (
-            <button key={f} onClick={() => setActionFilter(f)}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${actionFilter === f ? "bg-[#1e2a3a] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>
-            {f === "ALL" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
-        </div>
-        <div className="mt-3 grid gap-2 md:grid-cols-3">
-          <input
-            value={actorFilter}
-            onChange={(e) => setActorFilter(e.target.value)}
-            placeholder="Filter by user"
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-          />
-          <input
-            type="date"
-            value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-          />
-          <input
-            type="date"
-            value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-          />
+      {/* Filter toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] shadow-sm">
+        <input
+          type="text"
+          placeholder="Filter by actor / username..."
+          value={actorFilter}
+          onChange={(e) => setActorFilter(e.target.value)}
+          className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.04] px-3.5 py-1.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 outline-none w-full sm:w-64"
+        />
+
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {["ALL", "created", "approved", "rejected", "cancelled", "login"].map((f) => (
+            <button
+              key={f}
+              onClick={() => setActionFilter(f)}
+              className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors shrink-0 ${
+                actionFilter === f
+                  ? "bg-black dark:bg-white text-white dark:text-zinc-950 font-semibold shadow-sm"
+                  : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              {f === "ALL" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
         </div>
       </div>
 
-      {loading ? (
-        <div className="space-y-3">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-slate-200" />)}</div>
-      ) : logs.length === 0 ? (
-        <p className="text-sm text-slate-600">No audit entries found.</p>
-      ) : (
-        <div className="space-y-2">
-          {logs.map(log => {
-            const isExp = expandedId === log.id;
-            let details: Record<string, unknown> | null = null;
-            try { if (log.details) details = JSON.parse(log.details); } catch {}
-
-            return (
-              <motion.div key={log.id} layout className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                <button type="button" onClick={() => setExpandedId(isExp ? null : log.id)}
-                  className="flex w-full items-center gap-4 px-5 py-3 text-left hover:bg-slate-50 transition">
-                  <span className="text-lg">{actionIcons[log.action] || "📄"}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${actionColors[log.action] || "bg-slate-100 text-slate-600"}`}>
-                        {log.action}
-                      </span>
-                      <span className="text-xs text-slate-400">{log.entity_type} #{log.entity_id}</span>
-                    </div>
-                    <p className="text-sm text-slate-600 mt-0.5">
-                      by <span className="font-medium text-slate-800">{log.performed_by_username || "System"}</span>
-                      <span className="text-slate-400 ml-2">· {fmtTime(log.created_at)}</span>
+      {/* Log list */}
+      <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] overflow-hidden shadow-sm">
+        <div className="divide-y divide-slate-100 dark:divide-white/[0.04]">
+          {loading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-14 p-4 animate-pulse"><div className="h-4 bg-slate-100 dark:bg-white/[0.03] rounded" /></div>
+            ))
+          ) : logs.length === 0 ? (
+            <div className="p-8 text-center text-xs text-slate-400 dark:text-zinc-400">No audit entries found</div>
+          ) : (
+            logs.map((item) => (
+              <div key={item.id} className="p-4 flex items-center justify-between hover:bg-slate-50/80 dark:hover:bg-white/[0.02] transition-colors text-xs">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider border shrink-0 ${
+                      actionStyles[item.action] || "bg-slate-100 dark:bg-zinc-500/10 text-slate-700 dark:text-zinc-400 border-slate-200 dark:border-zinc-500/20"
+                    }`}
+                  >
+                    {item.action}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-slate-800 dark:text-zinc-200 font-medium truncate">
+                      <span className="text-slate-900 dark:text-white font-semibold">{item.performed_by_username || "System"}</span> · {item.entity_type} {item.entity_id ? `#${item.entity_id}` : ""}
                     </p>
+                    {item.details && (
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono truncate mt-0.5">{item.details}</p>
+                    )}
                   </div>
-                </button>
-                {isExp && details && (
-                  <div className="border-t border-slate-100 px-5 py-3 bg-slate-50">
-                    <pre className="text-xs text-slate-600 whitespace-pre-wrap">{JSON.stringify(details, null, 2)}</pre>
-                  </div>
-                )}
-              </motion.div>
-            );
-          })}
+                </div>
+                <span className="text-[11px] text-slate-400 dark:text-zinc-400 font-mono shrink-0 ml-4 tabular-nums">
+                  {fmtTime(item.created_at)}
+                </span>
+              </div>
+            ))
+          )}
         </div>
-      )}
-    </section>
+      </div>
+    </div>
   );
 }

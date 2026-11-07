@@ -5,8 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api, CashReconciliationReport } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
-const fmt = (v: string | number) =>
-  `₨ ${Number(v).toLocaleString("en-PK", { maximumFractionDigits: 0 })}`;
+const fmt = (v: string | number | null | undefined) =>
+  v != null ? `₨ ${Number(v).toLocaleString("en-PK", { maximumFractionDigits: 0 })}` : "—";
 
 const MONTH_LABELS = [
   "January", "February", "March", "April", "May", "June",
@@ -21,7 +21,7 @@ export default function CashReconciliationPage() {
 
   const isSuperAdmin = user?.role === "super_admin";
 
-  const { data, isLoading, error } = useQuery<CashReconciliationReport>({
+  const { data } = useQuery<CashReconciliationReport>({
     queryKey: ["reports", "cash-reconciliation", year, month],
     queryFn: () => api.getCashReconciliation(year, month),
     enabled: isAuthenticated && isSuperAdmin,
@@ -30,33 +30,30 @@ export default function CashReconciliationPage() {
   if (!isAuthenticated) return null;
   if (!isSuperAdmin) {
     return (
-      <section className="space-y-6">
-        <h2 className="text-3xl font-semibold text-slate-900">Cash Reconciliation</h2>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          Only super admins can view cash reconciliation reports.
-        </div>
-      </section>
+      <div className="p-8 text-center text-xs text-slate-500 dark:text-zinc-400">
+        Super Admin permissions required to view cash reconciliation reports.
+      </div>
     );
   }
 
   return (
-    <section className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-semibold text-slate-900">Cash Reconciliation</h2>
-        <p className="mt-1 text-sm text-slate-500">Monthly cash flow with per-treasurer balances</p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white tracking-tight">Cash Reconciliation</h2>
+          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+            Audit of physical custody and net movements for {MONTH_LABELS[month - 1]} {year}
+          </p>
+        </div>
       </div>
 
-      {error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {(error as Error).message}
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center gap-3">
+      {/* Date Selectors */}
+      <div className="flex items-center gap-2 p-2 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] shadow-sm max-w-sm">
         <select
           value={month}
           onChange={(e) => setMonth(Number(e.target.value))}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+          className="flex-1 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] px-3 py-1.5 text-xs text-slate-900 dark:text-white outline-none"
         >
           {MONTH_LABELS.map((label, i) => (
             <option key={i + 1} value={i + 1}>{label}</option>
@@ -65,71 +62,50 @@ export default function CashReconciliationPage() {
         <select
           value={year}
           onChange={(e) => setYear(Number(e.target.value))}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+          className="flex-1 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] px-3 py-1.5 text-xs text-slate-900 dark:text-white outline-none"
         >
-          {Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map((y) => (
+          {[now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2].map((y) => (
             <option key={y} value={y}>{y}</option>
           ))}
         </select>
       </div>
 
-      {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-24 animate-pulse rounded-xl bg-slate-100" />
-          ))}
+      {/* Flow Cards */}
+      {data && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="p-4 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] shadow-sm">
+            <span className="text-[10px] text-slate-500 dark:text-zinc-400 uppercase tracking-wider">Total Inflow</span>
+            <p className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400 tabular-nums mt-1">{fmt(data.total_inflow)}</p>
+          </div>
+          <div className="p-4 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] shadow-sm">
+            <span className="text-[10px] text-slate-500 dark:text-zinc-400 uppercase tracking-wider">Total Outflow</span>
+            <p className="text-lg font-bold font-mono text-rose-600 dark:text-rose-400 tabular-nums mt-1">{fmt(data.total_outflow)}</p>
+          </div>
+          <div className="p-4 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] shadow-sm">
+            <span className="text-[10px] text-slate-500 dark:text-zinc-400 uppercase tracking-wider">Net Monthly Flow</span>
+            <p className="text-lg font-bold font-mono text-sky-600 dark:text-sky-400 tabular-nums mt-1">{fmt(data.net_flow)}</p>
+          </div>
+          <div className="p-4 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] shadow-sm">
+            <span className="text-[10px] text-slate-500 dark:text-zinc-400 uppercase tracking-wider">Closing Cash Position</span>
+            <p className="text-lg font-bold font-mono text-slate-900 dark:text-white tabular-nums mt-1">{fmt(data.closing_balance)}</p>
+          </div>
         </div>
-      ) : data ? (
-        <div className="space-y-6">
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            {[
-              { label: "Total Inflow", value: fmt(data.total_inflow), color: "text-emerald-600" },
-              { label: "Total Outflow", value: fmt(data.total_outflow), color: "text-rose-600" },
-              { label: "Transfers", value: fmt(data.total_transfer), color: "text-sky-600" },
-              { label: "Net Flow", value: fmt(data.net_flow), color: Number(data.net_flow) >= 0 ? "text-emerald-600" : "text-rose-600" },
-            ].map((card) => (
-              <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{card.label}</p>
-                <p className={`mt-1 text-xl font-bold ${card.color}`}>{card.value}</p>
+      )}
+
+      {/* Per-Treasurer Splits */}
+      {data && data.by_treasurer && Object.keys(data.by_treasurer).length > 0 && (
+        <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] p-5 shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Balances by Custodian</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {Object.entries(data.by_treasurer).map(([person, amount]) => (
+              <div key={person} className="p-3 rounded-xl border border-slate-200 dark:border-white/[0.06] bg-slate-50/50 dark:bg-white/[0.01]">
+                <p className="text-xs font-semibold text-slate-800 dark:text-zinc-200">{person}</p>
+                <p className="text-sm font-bold font-mono text-slate-900 dark:text-white tabular-nums mt-1">{fmt(amount)}</p>
               </div>
             ))}
           </div>
-
-          {/* Opening / Closing */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Opening Balance</p>
-              <p className="mt-1 text-xl font-bold text-slate-900">
-                {data.opening_balance != null ? fmt(data.opening_balance) : "—"}
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Closing Balance</p>
-              <p className="mt-1 text-xl font-bold text-slate-900">
-                {data.closing_balance != null ? fmt(data.closing_balance) : "—"}
-              </p>
-            </div>
-          </div>
-
-          {/* Per-Treasurer Balances */}
-          {Object.keys(data.by_treasurer).length > 0 && (
-            <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 px-4 py-3">
-                <h3 className="text-sm font-semibold text-slate-900">Treasurer Balances</h3>
-              </div>
-              <div className="divide-y divide-slate-50">
-                {Object.entries(data.by_treasurer).map(([name, amount]) => (
-                  <div key={name} className="flex items-center justify-between px-4 py-3">
-                    <span className="text-sm font-medium text-slate-700">{name}</span>
-                    <span className="text-sm font-semibold text-slate-900">{fmt(amount)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
-      ) : null}
-    </section>
+      )}
+    </div>
   );
 }

@@ -2,29 +2,25 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/lib/api";
-import { useAuth } from "@/lib/auth-context";
 import type { Occupant } from "@/lib/types";
 
 const EXTRA_MAINTENANCE_PER_ADDITIONAL_CAR = 2000;
 
-const formatAmount = (value: string | undefined): string =>
-  `₨ ${parseFloat(value || "0").toLocaleString("en-PK")}`;
+const formatAmount = (value: string | number | undefined): string =>
+  `₨ ${parseFloat(String(value || "0")).toLocaleString("en-PK", { maximumFractionDigits: 0 })}`;
 
 export default function CarMaintenancePage() {
-  const { isLoading: authLoading } = useAuth();
   const qc = useQueryClient();
   const [editors, setEditors] = useState<Record<number, { carCount: number }>>({});
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
 
-  const { data: tenants = [], isLoading, error } = useQuery({
+  const { data: tenants = [], isLoading } = useQuery({
     queryKey: ["tenants"],
     queryFn: api.getTenants,
   });
 
-  // Initialise editors when tenants load
   useEffect(() => {
     if (tenants.length === 0) return;
     setEditors((prev) => {
@@ -51,10 +47,6 @@ export default function CarMaintenancePage() {
     const editor = editors[tenant.id];
     if (!editor) return;
     const normalizedCars = Math.max(0, Number(editor.carCount || 0));
-    if (Number.isNaN(normalizedCars)) {
-      setToast({ type: "error", message: "Please enter a valid number of cars." });
-      return;
-    }
 
     try {
       setSavingId(tenant.id);
@@ -63,163 +55,152 @@ export default function CarMaintenancePage() {
         extra_car_maintenance_fee: EXTRA_MAINTENANCE_PER_ADDITIONAL_CAR.toFixed(2),
       });
       qc.invalidateQueries({ queryKey: ["tenants"] });
-      setToast({ type: "success", message: `Updated car count for ${tenant.unit.unit_no}.` });
+      setToast({ type: "success", message: `Updated parking for Unit ${tenant.unit.unit_no}` });
     } catch (err) {
-      setToast({ type: "error", message: (err as Error).message || "Failed to update car maintenance." });
+      setToast({ type: "error", message: (err as Error).message || "Failed to update." });
     } finally {
       setSavingId(null);
     }
   };
 
   useEffect(() => {
-    if (toast) {
-      const id = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(id);
-    }
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(id);
   }, [toast]);
 
-  if (authLoading) return null;
-
   return (
-    <section className="space-y-6">
+    <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h2 className="text-3xl font-semibold text-slate-900">Car Maintenance</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          1 car = no additional maintenance. Each extra car after the 1st adds ₨{" "}
-          {EXTRA_MAINTENANCE_PER_ADDITIONAL_CAR.toLocaleString("en-PK")} to the monthly maintenance.
+        <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+          Parking & Vehicle Maintenance
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+          First vehicle included in base maintenance. Additional vehicles incur ₨ 2,000/month.
         </p>
       </div>
 
-      {error ? (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {(error as Error).message}
+      {toast && (
+        <div
+          className={`rounded-xl px-4 py-3 text-xs font-medium border flex items-center justify-between ${
+            toast.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-300"
+              : "bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-300"
+          }`}
+        >
+          <span>{toast.message}</span>
+          <button onClick={() => setToast(null)} className="text-slate-400 hover:text-black dark:hover:text-white">✕</button>
         </div>
-      ) : null}
+      )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <motion.article
-          whileHover={{ y: -2 }}
-          className="rounded-2xl border-l-4 border-slate-200 bg-white p-6 shadow-sm"
-          style={{ borderLeftColor: "#6366f1" }}
-        >
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Total Extra-Car Charges / Month
+      {/* Metrics Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] p-5 shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+            Total Extra Vehicle Charges
           </p>
-          <p className="mt-2 text-2xl font-bold text-indigo-600">
-            ₨ {totals.extra.toLocaleString("en-PK")}
+          <p className="mt-2 text-2xl font-bold font-mono text-slate-900 dark:text-white tabular-nums">
+            {formatAmount(totals.extra)}
           </p>
-        </motion.article>
-        <motion.article
-          whileHover={{ y: -2 }}
-          className="rounded-2xl border-l-4 border-slate-200 bg-white p-6 shadow-sm"
-          style={{ borderLeftColor: "#16a34a" }}
-        >
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Total Monthly Maintenance (with Cars)
+          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Monthly incremental parking fees</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] p-5 shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+            Total Monthly Collections (Base + Cars)
           </p>
-          <p className="mt-2 text-2xl font-bold text-emerald-600">
-            ₨ {totals.total.toLocaleString("en-PK")}
+          <p className="mt-2 text-2xl font-bold font-mono text-slate-900 dark:text-white tabular-nums">
+            {formatAmount(totals.total)}
           </p>
-        </motion.article>
+          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Combined expected monthly dues</p>
+        </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {/* Table */}
+      <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-[#1e2a3a] text-white">
-              <tr>
-                <th className="px-5 py-3 font-semibold">Resident</th>
-                <th className="px-5 py-3 font-semibold">Unit</th>
-                <th className="px-5 py-3 font-semibold">Base Fee</th>
-                <th className="px-5 py-3 font-semibold">Cars</th>
-                <th className="px-5 py-3 font-semibold">Fee per Extra Car</th>
-                <th className="px-5 py-3 font-semibold">Extra Charges</th>
-                <th className="px-5 py-3 font-semibold">Total Maintenance</th>
-                <th className="px-5 py-3 font-semibold">Action</th>
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 dark:border-white/10 text-slate-500 dark:text-zinc-400 font-bold uppercase text-[10px] bg-slate-50 dark:bg-white/[0.02]">
+                <th className="py-3 px-4">Flat #</th>
+                <th className="py-3 px-4">Resident</th>
+                <th className="py-3 px-4 text-center">Vehicles Count</th>
+                <th className="py-3 px-4 text-right">Extra Cars Fee</th>
+                <th className="py-3 px-4 text-right">Total Maintenance</th>
+                <th className="py-3 px-4 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {isLoading
-                ? Array.from({ length: 4 }).map((_, i) => (
-                    <tr key={i}>
-                      <td className="px-5 py-4" colSpan={8}>
-                        <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
-                      </td>
-                    </tr>
-                  ))
-                : tenants.map((tenant) => {
-                    const editor = editors[tenant.id];
-                    const computedCars = Math.max(0, Number(editor?.carCount ?? 0));
-                    const additionalCars = Math.max(0, computedCars - 1);
-                    const expectedExtra = additionalCars * EXTRA_MAINTENANCE_PER_ADDITIONAL_CAR;
-                    return (
-                      <tr key={tenant.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-5 py-4 font-medium text-slate-800">{tenant.name}</td>
-                        <td className="px-5 py-4 text-slate-700">{tenant.unit.unit_no}</td>
-                        <td className="px-5 py-4 text-slate-700">
-                          {formatAmount(tenant.monthly_maintenance_fee)}
-                        </td>
-                        <td className="px-5 py-4">
-                          <input
-                            type="number"
-                            min={0}
-                            value={editor?.carCount ?? 0}
-                            onChange={(e) =>
-                              setEditors((prev) => ({
-                                ...prev,
-                                [tenant.id]: { carCount: Number(e.target.value) },
-                              }))
-                            }
-                            className="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-                          />
-                          <p className="mt-1 text-xs text-slate-500">
-                            Extra: {additionalCars} → +₨ {expectedExtra.toLocaleString("en-PK")}
-                          </p>
-                        </td>
-                        <td className="px-5 py-4 text-slate-600">
-                          ₨ {EXTRA_MAINTENANCE_PER_ADDITIONAL_CAR.toLocaleString("en-PK")}
-                        </td>
-                        <td className="px-5 py-4 text-slate-700">
-                          {formatAmount(tenant.extra_car_charges)}
-                        </td>
-                        <td className="px-5 py-4 font-medium text-slate-800">
-                          {formatAmount(tenant.total_monthly_maintenance)}
-                        </td>
-                        <td className="px-5 py-4">
+            <tbody className="divide-y divide-slate-100 dark:divide-white/[0.04]">
+              {isLoading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan={6} className="py-4 px-4"><div className="h-5 bg-slate-200 dark:bg-white/[0.03] rounded" /></td>
+                  </tr>
+                ))
+              ) : (
+                tenants.map((t, idx) => {
+                  const carCount = editors[t.id]?.carCount ?? (t.car_count || 1);
+                  const isSaving = savingId === t.id;
+                  return (
+                    <tr key={`${t.id}-${idx}`} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-white">{t.unit.unit_no}</td>
+                      <td className="py-3.5 px-4 font-semibold text-slate-900 dark:text-zinc-100">{t.name}</td>
+                      <td className="py-3.5 px-4 text-center">
+                        <div className="inline-flex items-center gap-1.5 bg-slate-100 dark:bg-white/[0.04] p-1 rounded-lg border border-slate-200 dark:border-white/10">
                           <button
                             type="button"
-                            onClick={() => void saveRow(tenant)}
-                            disabled={savingId === tenant.id}
-                            className="rounded-lg bg-[#1e2a3a] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#2d3f54] disabled:opacity-50"
+                            onClick={() =>
+                              setEditors((prev) => ({
+                                ...prev,
+                                [t.id]: { carCount: Math.max(0, carCount - 1) },
+                              }))
+                            }
+                            className="w-6 h-6 rounded bg-white hover:bg-slate-200 text-black dark:bg-white/10 dark:hover:bg-white/20 dark:text-white flex items-center justify-center font-bold text-xs"
                           >
-                            {savingId === tenant.id ? "Saving…" : "Save"}
+                            -
                           </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          <span className="w-6 text-center font-mono font-bold text-slate-900 dark:text-white">{carCount}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditors((prev) => ({
+                                ...prev,
+                                [t.id]: { carCount: carCount + 1 },
+                              }))
+                            }
+                            className="w-6 h-6 rounded bg-white hover:bg-slate-200 text-black dark:bg-white/10 dark:hover:bg-white/20 dark:text-white flex items-center justify-center font-bold text-xs"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-slate-600 dark:text-zinc-300">
+                        {formatAmount(Math.max(0, carCount - 1) * EXTRA_MAINTENANCE_PER_ADDITIONAL_CAR)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
+                        {formatAmount(
+                          parseFloat(t.monthly_maintenance_fee || "0") +
+                            Math.max(0, carCount - 1) * EXTRA_MAINTENANCE_PER_ADDITIONAL_CAR
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={() => saveRow(t)}
+                          className="rounded-lg bg-slate-100 hover:bg-black hover:text-white text-slate-800 dark:bg-white/10 dark:text-zinc-200 dark:hover:bg-white dark:hover:text-black px-3 py-1.5 text-xs font-bold transition-colors press-feedback disabled:opacity-50"
+                        >
+                          {isSaving ? "Saving..." : "Save"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
       </div>
-
-      {/* Toast */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 16 }}
-            className={`fixed bottom-6 right-6 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${
-              toast.type === "success"
-                ? "bg-emerald-100 text-emerald-800"
-                : "bg-rose-100 text-rose-800"
-            }`}
-          >
-            {toast.message}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </section>
+    </div>
   );
 }

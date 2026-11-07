@@ -39,14 +39,21 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error("Session expired");
   }
 
+  const text = await response.text();
   if (!response.ok) {
-    const text = await response.text();
     throw new Error(
       `API request failed (${response.status} ${response.statusText}) for ${path}: ${text}`,
     );
   }
 
-  return response.json() as Promise<T>;
+  if (!text || text.trim() === "") {
+    return {} as T;
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return text as unknown as T;
+  }
 }
 
 const withQuery = (
@@ -263,7 +270,8 @@ export const api = {
       const err = await response.json().catch(() => ({ detail: "Login failed" }));
       throw new Error(err.detail || "Login failed");
     }
-    return response.json() as Promise<LoginResponse>;
+    const text = await response.text();
+    return (text ? JSON.parse(text) : {}) as LoginResponse;
   },
 
   getMe: (): Promise<AuthUser> => fetchJson<AuthUser>("/auth/me"),
@@ -326,13 +334,13 @@ export const api = {
   approveTransaction: (id: number): Promise<Transaction> =>
     fetchJson(`/transactions/${id}/approve`, { method: "POST", body: JSON.stringify({}) }),
 
-  rejectTransaction: (id: number, reason: string): Promise<Transaction> =>
+  rejectTransaction: (id: number, reason?: string): Promise<Transaction> =>
     fetchJson(`/transactions/${id}/reject`, {
       method: "POST",
       body: JSON.stringify({ action: "reject", reason }),
     }),
 
-  cancelTransaction: (id: number, reason: string): Promise<Transaction> =>
+  cancelTransaction: (id: number, reason?: string): Promise<Transaction> =>
     fetchJson(`/transactions/${id}/cancel`, {
       method: "POST",
       body: JSON.stringify({ action: "cancel", reason }),
@@ -367,6 +375,15 @@ export const api = {
     payload: { car_count: number; extra_car_maintenance_fee: string },
   ): Promise<Occupant> =>
     fetchJson<Occupant>(`/tenants/${occupantId}/cars`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  updateTenant: (
+    occupantId: number,
+    payload: { name: string; contact?: string; cnic?: string },
+  ): Promise<Occupant> =>
+    fetchJson<Occupant>(`/tenants/${occupantId}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),

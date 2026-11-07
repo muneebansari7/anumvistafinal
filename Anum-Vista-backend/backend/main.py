@@ -124,6 +124,39 @@ def _ensure_payment_mode_column() -> None:
 
 _ensure_payment_mode_column()
 
+
+def _ensure_all_model_columns() -> None:
+    with engine.connect() as conn:
+        inspector = inspect(engine)
+        table_names = set(inspector.get_table_names())
+        if "units" in table_names:
+            unit_cols = [c["name"] for c in inspector.get_columns("units")]
+            if "owner_name" not in unit_cols:
+                conn.execute(text("ALTER TABLE units ADD COLUMN owner_name VARCHAR"))
+            if "owner_contact" not in unit_cols:
+                conn.execute(text("ALTER TABLE units ADD COLUMN owner_contact VARCHAR"))
+            if "is_rental" not in unit_cols:
+                conn.execute(text("ALTER TABLE units ADD COLUMN is_rental BOOLEAN NOT NULL DEFAULT 0"))
+
+        if "occupants" in table_names:
+            occ_cols = [c["name"] for c in inspector.get_columns("occupants")]
+            if "cnic" not in occ_cols:
+                conn.execute(text("ALTER TABLE occupants ADD COLUMN cnic VARCHAR"))
+            if "contact" not in occ_cols:
+                conn.execute(text("ALTER TABLE occupants ADD COLUMN contact VARCHAR"))
+
+        if "transactions" in table_names:
+            txn_cols = [c["name"] for c in inspector.get_columns("transactions")]
+            if "expense_description" not in txn_cols:
+                conn.execute(text("ALTER TABLE transactions ADD COLUMN expense_description VARCHAR"))
+            if "expense_details" not in txn_cols:
+                conn.execute(text("ALTER TABLE transactions ADD COLUMN expense_details VARCHAR"))
+
+        conn.commit()
+
+
+_ensure_all_model_columns()
+
 # Seed default users
 try:
     try:
@@ -222,6 +255,50 @@ def update_tenant_car_maintenance(
     occupant.car_count = payload.car_count
     occupant.extra_car_maintenance_fee = payload.extra_car_maintenance_fee
     db.add(occupant)
+    db.commit()
+    db.refresh(occupant)
+
+    extra_cars = max(0, int(occupant.car_count or 1) - 1)
+    extra_fee = occupant.extra_car_maintenance_fee or Decimal("0.00")
+    base_fee = occupant.monthly_maintenance_fee or Decimal("0.00")
+    occupant.extra_cars = extra_cars
+    occupant.extra_car_charges = extra_fee * extra_cars
+    occupant.total_monthly_maintenance = base_fee + occupant.extra_car_charges
+    occupant.expected_dues = _compute_expected_dues(occupant)
+    return occupant
+
+
+@app.patch("/api/tenants/{occupant_id}", response_model=schemas.OccupantOut)
+def update_tenant(
+    occupant_id: int,
+    payload: schemas.OccupantUpdate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_super_admin),
+):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Resident name cannot be empty")
+
+    occupant = db.query(models.Occupant).filter(models.Occupant.id == occupant_id).first()
+    if not occupant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+
+    old_name = occupant.name
+    occupant.name = name
+    if payload.contact is not None:
+        occupant.contact = payload.contact.strip() or None
+    if payload.cnic is not None:
+        occupant.cnic = payload.cnic.strip() or None
+
+    db.add(occupant)
+
+    _audit(db, models.AuditAction.verified, "occupant", occupant.id, user, {
+        "action": "update_name",
+        "old_name": old_name,
+        "new_name": name,
+        "unit_no": occupant.unit.unit_no if occupant.unit else "",
+    })
+
     db.commit()
     db.refresh(occupant)
 

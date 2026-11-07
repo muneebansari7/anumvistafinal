@@ -4,8 +4,12 @@ import os
 from decimal import Decimal
 
 # Import DB and models
-from database import engine, SessionLocal, Base
-import models
+try:
+    from backend.database import engine, SessionLocal, Base
+    from backend import models
+except ImportError:
+    from database import engine, SessionLocal, Base
+    import models
 
 def clean_value(val):
     if pd.isna(val) or val == ' ' or str(val).strip() == '':
@@ -250,7 +254,7 @@ def run_migration():
             name = str(row.iloc[1]).strip() if clean_value(row.iloc[1]) else None
             unit_no = str(row.iloc[2]).strip() if clean_value(row.iloc[2]) else None
 
-            if not name or name == 'nan' or name == 'Particulars' or not unit_no or unit_no == 'nan':
+            if not name or name in {'nan', 'Particulars', 'Residents Name'} or not unit_no or unit_no in {'nan', 'Appartment No.', 'Appartment No'}:
                 continue
 
             unit = db.query(models.Unit).filter(models.Unit.unit_no == unit_no).first()

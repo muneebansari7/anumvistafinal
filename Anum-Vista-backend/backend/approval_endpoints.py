@@ -1,5 +1,5 @@
 """approval_endpoints.py — All new governance endpoints (auth, approval, notifications, audit, dues-first receipts)"""
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Header
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -26,6 +26,7 @@ def _seed_users(db: Session):
     accounts = [
         {"username": "admin", "email": "admin@anumvista.com", "password": "admin123", "role": models.UserRole.admin},
         {"username": "superadmin", "email": "superadmin@anumvista.com", "password": "super123", "role": models.UserRole.super_admin},
+        {"username": "anumvista", "email": None, "password": "anumvista123", "role": models.UserRole.super_admin},
     ]
     # Add unique super_admin accounts for treasurers
     for t in TREASURER_HOLDERS:
@@ -768,6 +769,7 @@ def _fmt_date(dt) -> str:
 def get_receipt_pdf(
     txn_id: int,
     token: Optional[str] = Query(default=None),
+    authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     """Return a print-ready HTML receipt. Accepts auth via Bearer header or ?token= query param."""
@@ -777,13 +779,15 @@ def get_receipt_pdf(
     except ImportError:
         from auth import SECRET_KEY, ALGORITHM
 
-    # Try Bearer token first, fall back to query param
+    # Try Bearer header first, fall back to query param
+    auth_token = token
+    if authorization and authorization.lower().startswith("bearer "):
+        auth_token = authorization.split(" ", 1)[1].strip()
+
     user = None
     try:
-        from fastapi.security import OAuth2PasswordBearer
-        # Manual token extraction since we can't use Depends with query param fallback
-        if token:
-            payload = jose_jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if auth_token:
+            payload = jose_jwt.decode(auth_token, SECRET_KEY, algorithms=[ALGORITHM])
             username = payload.get("sub")
             if username:
                 user = db.query(models.User).filter(models.User.username == username).first()

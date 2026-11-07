@@ -20,7 +20,9 @@ set LOCAL_IP=%LOCAL_IP: =%
 
 REM ── Start the Backend (FastAPI) ──
 echo  [1/2] Starting Backend (FastAPI)...
-start "Anum Vista Backend" /min cmd /k "cd /d %~dp0Anum-Vista-backend && python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000"
+set "PY_CMD=python"
+if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" set "PY_CMD=%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
+start "Anum Vista Backend" /min cmd /k "cd /d %~dp0Anum-Vista-backend && "%PY_CMD%" -m uvicorn backend.main:app --host 0.0.0.0 --port 8000"
 
 REM ── Wait for backend to be ready ──
 echo  Waiting for backend to initialize...

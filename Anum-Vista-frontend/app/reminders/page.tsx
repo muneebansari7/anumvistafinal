@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { api, DueReminderEntry, DueRemindersOut } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
@@ -10,13 +10,12 @@ const fmt = (v: string | number) =>
 
 export default function RemindersPage() {
   const { user, isAuthenticated } = useAuth();
-  const qc = useQueryClient();
   const isSuperAdmin = user?.role === "super_admin";
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [whatsappStatus, setWhatsappStatus] = useState<Record<number, "sending" | "sent" | "error">>({});
 
-  const { data, isLoading, error } = useQuery<DueRemindersOut>({
+  const { data, isLoading } = useQuery<DueRemindersOut>({
     queryKey: ["reminders", "due"],
     queryFn: api.getDueReminders,
     enabled: isAuthenticated,
@@ -45,7 +44,7 @@ export default function RemindersPage() {
     if (!entry.contact) return;
     setWhatsappStatus((prev) => ({ ...prev, [entry.occupant_id]: "sending" }));
     try {
-      const message = `Dear ${entry.name},\n\nThis is a reminder that your maintenance dues of ${fmt(entry.total_due)} (${entry.months_overdue} month${entry.months_overdue !== 1 ? "s" : ""}) for Apt ${entry.unit_no} are pending.\n\nUnpaid months: ${entry.unpaid_months.join(", ")}\n\nPlease arrange payment at your earliest convenience.\n\nRegards,\nAnum Vista Management`;
+      const message = `Dear ${entry.name},\n\nMaintenance dues of ${fmt(entry.total_due)} (${entry.months_overdue} months) for Unit ${entry.unit_no} are pending.\nUnpaid months: ${entry.unpaid_months.join(", ")}\n\nPlease clear payment.\n\nAnum Vista Management`;
       await api.sendWhatsAppReminder({
         occupant_id: entry.occupant_id,
         phone: entry.contact,
@@ -57,165 +56,129 @@ export default function RemindersPage() {
     }
   };
 
-  const sendBulkWhatsApp = async () => {
-    if (!data) return;
-    const entries = data.entries.filter((e) => e.contact);
-    if (entries.length === 0) {
-      setToast({ type: "error", message: "No residents have contact numbers." });
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
-    const bulk = entries.map((e) => ({
-      occupant_id: e.occupant_id,
-      phone: e.contact!,
-      message: `Dear ${e.name}, your maintenance dues of ${fmt(e.total_due)} (${e.months_overdue} month(s)) for Apt ${e.unit_no} are pending. Please arrange payment. — Anum Vista`,
-    }));
-    try {
-      const resp = await api.sendWhatsAppBulk({ entries: bulk });
-      setToast({ type: "success", message: `Sent ${resp.sent} message(s), ${resp.failed} failed.` });
-    } catch (err) {
-      setToast({ type: "error", message: (err as Error).message });
-    }
-    setTimeout(() => setToast(null), 3000);
-  };
-
   const filtered = (data?.entries ?? []).filter((e) => {
     const q = search.trim().toLowerCase();
     return !q || e.name.toLowerCase().includes(q) || e.unit_no.toLowerCase().includes(q);
   });
 
-  const waConfigured = waConfig?.configured === true;
-
-  if (!isAuthenticated) return null;
-
   return (
-    <section className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-semibold text-slate-900">Due Reminders</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Residents with pending maintenance dues
-            {data && <span className="ml-2 font-semibold text-amber-600">— {data.total_residents_due} resident(s)</span>}
-          </p>
+          <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white tracking-tight">Due Reminders & WhatsApp</h2>
+          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Automated notifications for overdue residents</p>
         </div>
-        <div className="flex gap-2">
-          {isSuperAdmin && (
-            <button
-              onClick={() => generateMutation.mutate()}
-              disabled={generateMutation.isPending}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
-            >
-              {generateMutation.isPending ? "Sending..." : "Generate In-App Notifications"}
-            </button>
-          )}
+
+        {isSuperAdmin && (
           <button
-            onClick={sendBulkWhatsApp}
-            disabled={!waConfigured}
-            title={waConfigured ? "Send WhatsApp reminders to all" : "WhatsApp not configured — set up API keys in backend .env"}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-              waConfigured
-                ? "bg-green-600 text-white hover:bg-green-700"
-                : "bg-green-200 text-green-500 cursor-not-allowed"
-            }`}
+            onClick={() => generateMutation.mutate()}
+            disabled={generateMutation.isPending}
+            className="rounded-xl bg-black dark:bg-white text-white dark:text-zinc-950 px-3.5 py-1.5 text-xs font-semibold hover:bg-slate-800 dark:hover:bg-zinc-100 transition-colors press-feedback disabled:opacity-50 shadow-sm"
           >
-            Send All via WhatsApp
+            {generateMutation.isPending ? "Generating..." : "Generate In-App Alerts"}
           </button>
-        </div>
-      </div>
-
-      {!waConfigured && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          WhatsApp integration is not configured yet. Add your API credentials in the backend <code className="rounded bg-slate-200 px-1 py-0.5 text-xs">.env</code> file to enable messaging.
-        </div>
-      )}
-
-      {error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {(error as Error).message}
-        </div>
-      )}
-
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-4 py-3">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or apartment..."
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none md:max-w-sm"
-          />
-        </div>
-
-        {isLoading ? (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-16 animate-pulse rounded-lg bg-slate-100" />
-            ))}
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-50">
-            {filtered.map((e) => (
-              <div key={e.occupant_id} className="flex flex-wrap items-center gap-4 px-4 py-4 hover:bg-slate-50 transition">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-900">{e.unit_no}</span>
-                    <span className="text-sm text-slate-600">{e.name}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                      e.months_overdue >= 3 ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"
-                    }`}>
-                      {e.months_overdue} month{e.months_overdue !== 1 ? "s" : ""} overdue
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {e.unpaid_months.join(", ")} — Fee: {fmt(e.monthly_fee)}/mo
-                  </p>
-                  {e.contact && (
-                    <p className="mt-0.5 text-xs text-slate-400">Contact: {e.contact}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-bold text-rose-600">{fmt(e.total_due)}</span>
-                  <button
-                    onClick={() => sendWhatsApp(e)}
-                    disabled={!waConfigured || !e.contact || whatsappStatus[e.occupant_id] === "sending"}
-                    title={!e.contact ? "No contact number" : !waConfigured ? "WhatsApp not configured" : "Send WhatsApp reminder"}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                      whatsappStatus[e.occupant_id] === "sent"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : whatsappStatus[e.occupant_id] === "error"
-                          ? "bg-rose-100 text-rose-700"
-                          : waConfigured && e.contact
-                            ? "bg-green-600 text-white hover:bg-green-700"
-                            : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                    }`}
-                  >
-                    {whatsappStatus[e.occupant_id] === "sending"
-                      ? "Sending..."
-                      : whatsappStatus[e.occupant_id] === "sent"
-                        ? "Sent ✓"
-                        : whatsappStatus[e.occupant_id] === "error"
-                          ? "Failed"
-                          : "WhatsApp"}
-                  </button>
-                </div>
-              </div>
-            ))}
-            {filtered.length === 0 && (
-              <div className="px-4 py-8 text-center text-slate-400">
-                {search ? "No results match your search." : "No pending dues — all caught up!"}
-              </div>
-            )}
-          </div>
         )}
       </div>
 
-      {/* Toast */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${
-          toast.type === "success" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
-        }`}>
+        <div
+          className={`rounded-xl px-4 py-2.5 text-xs font-medium border ${
+            toast.type === "success"
+              ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-800 dark:text-emerald-300"
+              : "bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20 text-rose-800 dark:text-rose-300"
+          }`}
+        >
           {toast.message}
         </div>
       )}
-    </section>
+
+      {/* WhatsApp Configuration Banner */}
+      <div className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] text-xs shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+          <span className="text-slate-600 dark:text-zinc-300">WhatsApp Gateway:</span>
+          <span className="font-mono text-slate-900 dark:text-white font-medium capitalize">
+            {waConfig?.provider || "Direct Web Link"}
+          </span>
+        </div>
+        <span className="text-[11px] text-slate-500 dark:text-zinc-400">
+          {data?.total_residents_due || 0} residents overdue
+        </span>
+      </div>
+
+      {/* Search */}
+      <div className="max-w-xs">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Filter residents..."
+          className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-3.5 py-1.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 outline-none shadow-sm"
+        />
+      </div>
+
+      {/* Table */}
+      <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0d131f] overflow-hidden shadow-sm">
+        <table className="w-full text-left text-xs">
+          <thead>
+            <tr className="border-b border-slate-200 dark:border-white/10 text-slate-500 dark:text-zinc-400 uppercase text-[10px] bg-slate-50 dark:bg-white/[0.01]">
+              <th className="py-3 px-4">Flat #</th>
+              <th className="py-3 px-4">Resident</th>
+              <th className="py-3 px-4">Phone / WhatsApp</th>
+              <th className="py-3 px-4 text-center">Overdue</th>
+              <th className="py-3 px-4 text-right">Total Due</th>
+              <th className="py-3 px-4 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/[0.04]">
+            {isLoading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i} className="animate-pulse">
+                  <td colSpan={6} className="py-4 px-4"><div className="h-5 bg-slate-100 dark:bg-white/[0.03] rounded" /></td>
+                </tr>
+              ))
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-6 text-center text-slate-400 dark:text-zinc-400">No overdue residents</td>
+              </tr>
+            ) : (
+              filtered.map((e, idx) => {
+                const st = whatsappStatus[e.occupant_id];
+                return (
+                  <tr key={`${e.occupant_id}-${idx}`} className="hover:bg-slate-50/80 dark:hover:bg-white/[0.02] transition-colors">
+                    <td className="py-3.5 px-4 font-mono font-semibold text-slate-900 dark:text-white">{e.unit_no}</td>
+                    <td className="py-3.5 px-4 font-medium text-slate-900 dark:text-zinc-100">{e.name}</td>
+                    <td className="py-3.5 px-4 font-mono text-slate-600 dark:text-zinc-300">{e.contact || "No phone"}</td>
+                    <td className="py-3.5 px-4 text-center">
+                      <span className="rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 px-2 py-0.5 text-[10px] font-mono">
+                        {e.months_overdue} mo
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-right font-mono font-semibold text-rose-600 dark:text-rose-300 tabular-nums">
+                      {fmt(e.total_due)}
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      {e.contact ? (
+                        <button
+                          type="button"
+                          disabled={st === "sending"}
+                          onClick={() => sendWhatsApp(e)}
+                          className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] hover:bg-emerald-50 dark:hover:bg-emerald-500/20 hover:border-emerald-200 dark:hover:border-emerald-500/30 text-slate-700 dark:text-zinc-200 hover:text-emerald-700 dark:hover:text-emerald-300 px-3 py-1.5 text-xs font-medium transition-colors press-feedback disabled:opacity-50 shadow-sm"
+                        >
+                          {st === "sending" ? "Sending..." : st === "sent" ? "Sent ✓" : "Send WhatsApp"}
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 dark:text-zinc-500">No contact</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

@@ -180,6 +180,12 @@ class OccupantCarUpdate(BaseModel):
     extra_car_maintenance_fee: Decimal
 
 
+class OccupantUpdate(BaseModel):
+    name: str
+    contact: Optional[str] = None
+    cnic: Optional[str] = None
+
+
 class ExpenseDescriptionOut(BaseModel):
     id: int
     description: str
