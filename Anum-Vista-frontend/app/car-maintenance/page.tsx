@@ -124,6 +124,7 @@ export default function CarMaintenancePage() {
               <tr className="border-b border-slate-200 dark:border-white/10 text-slate-500 dark:text-zinc-400 font-bold uppercase text-[10px] bg-slate-50 dark:bg-white/[0.02]">
                 <th className="py-3 px-4">Flat #</th>
                 <th className="py-3 px-4">Resident</th>
+                <th className="py-3 px-4 text-right">Base Fee</th>
                 <th className="py-3 px-4 text-center">Vehicles Count</th>
                 <th className="py-3 px-4 text-right">Extra Cars Fee</th>
                 <th className="py-3 px-4 text-right">Total Maintenance</th>
@@ -134,7 +135,7 @@ export default function CarMaintenancePage() {
               {isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td colSpan={6} className="py-4 px-4"><div className="h-5 bg-slate-200 dark:bg-white/[0.03] rounded" /></td>
+                    <td colSpan={7} className="py-4 px-4"><div className="h-5 bg-slate-200 dark:bg-white/[0.03] rounded" /></td>
                   </tr>
                 ))
               ) : (
@@ -145,6 +146,9 @@ export default function CarMaintenancePage() {
                     <tr key={`${t.id}-${idx}`} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
                       <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-white">{t.unit.unit_no}</td>
                       <td className="py-3.5 px-4 font-semibold text-slate-900 dark:text-zinc-100">{t.name}</td>
+                      <td className="py-3.5 px-4 text-right font-mono text-slate-700 dark:text-zinc-300">
+                        {formatAmount(parseFloat(t.monthly_maintenance_fee || "0"))}
+                      </td>
                       <td className="py-3.5 px-4 text-center">
                         <div className="inline-flex items-center gap-1.5 bg-slate-100 dark:bg-white/[0.04] p-1 rounded-lg border border-slate-200 dark:border-white/10">
                           <button

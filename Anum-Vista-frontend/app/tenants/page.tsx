@@ -253,6 +253,7 @@ export default function TenantsPage() {
                 <th className="py-3 px-4">Contact</th>
                 <th className="py-3 px-4 text-right">Base Fee</th>
                 <th className="py-3 px-4 text-right">Cars (Fee)</th>
+                <th className="py-3 px-4 text-right">Total Fee</th>
                 <th className="py-3 px-4 text-center">Status</th>
                 <th className="py-3 px-4 text-right">Expected Dues</th>
                 <th className="py-3 px-4 text-right">Action</th>
@@ -262,12 +263,12 @@ export default function TenantsPage() {
               {isLoading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td colSpan={8} className="py-4 px-4"><div className="h-5 bg-slate-200 dark:bg-white/[0.03] rounded" /></td>
+                    <td colSpan={9} className="py-4 px-4"><div className="h-5 bg-slate-200 dark:bg-white/[0.03] rounded" /></td>
                   </tr>
                 ))
               ) : filteredTenants.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400 dark:text-zinc-500">
+                  <td colSpan={9} className="py-8 text-center text-slate-400 dark:text-zinc-500">
                     No residents matching current criteria.
                   </td>
                 </tr>
@@ -302,7 +303,10 @@ export default function TenantsPage() {
                         {fmt(t.monthly_maintenance_fee)}
                       </td>
                       <td className="py-3.5 px-4 text-right font-mono text-slate-500 dark:text-zinc-400">
-                        {t.car_count || 1} car ({fmt(t.extra_car_charges || 0)})
+                        {t.car_count || 1} {(t.car_count || 1) === 1 ? "car" : "cars"} ({fmt(t.extra_car_charges || 0)})
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
+                        {fmt(t.total_monthly_maintenance != null ? t.total_monthly_maintenance : Number(t.monthly_maintenance_fee || 0) + Number(t.extra_car_charges || 0))}
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <span
