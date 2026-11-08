@@ -27,9 +27,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(cleanUsername, password);
+      // Keep loading active while router navigates to avoid flash
     } catch (err) {
       setError((err as Error).message || "Invalid username or password");
-    } finally {
       setLoading(false);
     }
   };
@@ -49,6 +49,40 @@ export default function LoginPage() {
         {/* Soft dark vignette */}
         <div className="absolute inset-0 bg-radial-gradient from-transparent via-black/40 to-black/90" />
       </div>
+
+      {/* ─── Sleek Animated Loading Overlay with Logo & "Redirecting..." ─── */}
+      {loading && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/85 backdrop-blur-2xl animate-fadeIn">
+          {/* Animated Logo Container with Radiant Halo */}
+          <div className="relative flex items-center justify-center mb-6">
+            {/* Outer ambient blur glow */}
+            <div className="absolute -inset-8 rounded-full bg-white/10 blur-2xl animate-pulse" />
+
+            {/* Glowing rotating orbital gradient ring */}
+            <div className="absolute -inset-2.5 rounded-[26px] bg-gradient-to-tr from-white via-white/50 to-transparent animate-spin [animation-duration:2s] opacity-90" />
+
+            {/* Core AV Logo */}
+            <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white text-black font-extrabold text-2xl sm:text-3xl flex items-center justify-center shadow-2xl z-10 ring-1 ring-white/60">
+              AV
+            </div>
+          </div>
+
+          {/* Status Text Display */}
+          <div className="text-center space-y-1.5 animate-fadeIn">
+            <p className="text-xl sm:text-2xl font-bold tracking-widest text-white uppercase flex items-center justify-center gap-1 font-mono">
+              <span>Redirecting</span>
+              <span className="inline-flex tracking-normal">
+                <span className="animate-pulse [animation-duration:1s]">.</span>
+                <span className="animate-pulse [animation-duration:1s] [animation-delay:200ms]">.</span>
+                <span className="animate-pulse [animation-duration:1s] [animation-delay:400ms]">.</span>
+              </span>
+            </p>
+            <p className="text-xs sm:text-sm text-zinc-400 font-medium tracking-wider">
+              Securing session & loading dashboard
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ─── External / Cardless Form Container ─── */}
       <div className="relative z-10 w-full max-w-md my-auto space-y-8">
